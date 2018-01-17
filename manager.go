@@ -4,6 +4,10 @@ import (
 	"sync"
 )
 
+type logger interface {
+	Printf(format string, v ...interface{})
+}
+
 // ListType event list type
 type ListType map[string][]*Event
 
@@ -11,6 +15,7 @@ type ListType map[string][]*Event
 type Manager struct {
 	List ListType
 	sync.Mutex
+	Logger logger
 }
 
 // Add event
@@ -25,9 +30,11 @@ func (manager *Manager) RunALL(concurrency bool) {
 	for _, events := range manager.List {
 		for _, event := range events {
 			if concurrency {
-				go event.FN(event.Args...)
+				go manager.runEvent(event)
+				// go event.FN(event.Args...)
 			} else {
-				event.FN(event.Args...)
+				manager.runEvent(event)
+				// event.FN(event.Args...)
 			}
 
 		}
@@ -39,10 +46,11 @@ func (manager *Manager) RunType(typ string, concurrency bool) {
 	if events, oke := manager.List[typ]; oke {
 		for _, event := range events {
 			if concurrency {
-				go event.FN(event.Args...)
-
+				// go event.FN(event.Args...)
+				go manager.runEvent(event)
 			} else {
-				event.FN(event.Args...)
+				manager.runEvent(event)
+				// event.FN(event.Args...)
 			}
 		}
 	}
@@ -53,10 +61,22 @@ func (manager *Manager) Run(name string) {
 	for _, events := range manager.List {
 		for _, event := range events {
 			if event.Name == name {
-				event.FN(event.Args...)
+				manager.runEvent(event)
 			}
 		}
 	}
+}
+func (manager *Manager) runEvent(event *Event) {
+	if manager.Logger != nil {
+		manager.Logger.Printf("Event => Name: %s Type: %s called", event.Name, event.Type)
+	}
+	event.Run()
+}
+
+// SetLogger for debug event manager
+func (manager *Manager) SetLogger(logger logger) *Manager {
+	manager.Logger = logger
+	return manager
 }
 
 // Event ..
@@ -65,6 +85,11 @@ type Event struct {
 	Args []interface{}
 	Name string
 	Type string
+}
+
+// Run your self
+func (event *Event) Run() {
+	event.FN(event.Args...)
 }
 
 // New Manager
